@@ -1,110 +1,25 @@
-# -*- coding: utf-8 -*-
-
-#   __
-#  /__)  _  _     _   _ _/   _
-# / (   (- (/ (/ (- _)  /  _)
-#          /
-
 """
-Requests HTTP Library
-~~~~~~~~~~~~~~~~~~~~~
-
-Requests is an HTTP library, written in Python, for human beings. Basic GET
-usage:
-
-   >>> import requests
-   >>> r = requests.get('https://www.python.org')
-   >>> r.status_code
-   200
-   >>> 'Python is a programming language' in r.content
-   True
-
-... or POST:
-
-   >>> payload = dict(key1='value1', key2='value2')
-   >>> r = requests.post('http://httpbin.org/post', data=payload)
-   >>> print(r.text)
-   {
-     ...
-     "form": {
-       "key2": "value2",
-       "key1": "value1"
-     },
-     ...
-   }
-
-The other HTTP methods are supported - see `requests.api`. Full documentation
-is at <http://python-requests.org>.
-
-:copyright: (c) 2017 by Kenneth Reitz.
-:license: Apache 2.0, see LICENSE for more details.
+urllib3 - Thread-safe connection pooling and re-using.
 """
 
-from pip._vendor import urllib3
-from pip._vendor import chardet
+from __future__ import absolute_import
 import warnings
-from .exceptions import RequestsDependencyWarning
 
-
-def check_compatibility(urllib3_version, chardet_version):
-    urllib3_version = urllib3_version.split('.')
-    assert urllib3_version != ['dev']  # Verify urllib3 isn't installed from git.
-
-    # Sometimes, urllib3 only reports its version as 16.1.
-    if len(urllib3_version) == 2:
-        urllib3_version.append('0')
-
-    # Check urllib3 for compatibility.
-    major, minor, patch = urllib3_version  # noqa: F811
-    major, minor, patch = int(major), int(minor), int(patch)
-    # urllib3 >= 1.21.1, <= 1.22
-    assert major == 1
-    assert minor >= 21
-    assert minor <= 22
-
-    # Check chardet for compatibility.
-    major, minor, patch = chardet_version.split('.')[:3]
-    major, minor, patch = int(major), int(minor), int(patch)
-    # chardet >= 3.0.2, < 3.1.0
-    assert major == 3
-    assert minor < 1
-    assert patch >= 2
-
-
-# Check imported dependencies for compatibility.
-try:
-    check_compatibility(urllib3.__version__, chardet.__version__)
-except (AssertionError, ValueError):
-    warnings.warn("urllib3 ({0}) or chardet ({1}) doesn't match a supported "
-                  "version!".format(urllib3.__version__, chardet.__version__),
-                  RequestsDependencyWarning)
-
-# Attempt to enable urllib3's SNI support, if possible
-# try:
-#     from pip._vendor.urllib3.contrib import pyopenssl
-#     pyopenssl.inject_into_urllib3()
-# except ImportError:
-#     pass
-
-# urllib3's DependencyWarnings should be silenced.
-from pip._vendor.urllib3.exceptions import DependencyWarning
-warnings.simplefilter('ignore', DependencyWarning)
-
-from .__version__ import __title__, __description__, __url__, __version__
-from .__version__ import __build__, __author__, __author_email__, __license__
-from .__version__ import __copyright__, __cake__
-
-from . import utils
-from . import packages
-from .models import Request, Response, PreparedRequest
-from .api import request, get, head, post, patch, put, delete, options
-from .sessions import session, Session
-from .status_codes import codes
-from .exceptions import (
-    RequestException, Timeout, URLRequired,
-    TooManyRedirects, HTTPError, ConnectionError,
-    FileModeWarning, ConnectTimeout, ReadTimeout
+from .connectionpool import (
+    HTTPConnectionPool,
+    HTTPSConnectionPool,
+    connection_from_url
 )
+
+from . import exceptions
+from .filepost import encode_multipart_formdata
+from .poolmanager import PoolManager, ProxyManager, proxy_from_url
+from .response import HTTPResponse
+from .util.request import make_headers
+from .util.url import get_host
+from .util.timeout import Timeout
+from .util.retry import Retry
+
 
 # Set default logging handler to avoid "No handler found" warnings.
 import logging
@@ -115,7 +30,68 @@ except ImportError:
         def emit(self, record):
             pass
 
+__author__ = 'Andrey Petrov (andrey.petrov@shazow.net)'
+__license__ = 'MIT'
+__version__ = '1.22'
+
+__all__ = (
+    'HTTPConnectionPool',
+    'HTTPSConnectionPool',
+    'PoolManager',
+    'ProxyManager',
+    'HTTPResponse',
+    'Retry',
+    'Timeout',
+    'add_stderr_logger',
+    'connection_from_url',
+    'disable_warnings',
+    'encode_multipart_formdata',
+    'get_host',
+    'make_headers',
+    'proxy_from_url',
+)
+
 logging.getLogger(__name__).addHandler(NullHandler())
 
-# FileModeWarnings go off per the default.
-warnings.simplefilter('default', FileModeWarning, append=True)
+
+def add_stderr_logger(level=logging.DEBUG):
+    """
+    Helper for quickly adding a StreamHandler to the logger. Useful for
+    debugging.
+
+    Returns the handler after adding it.
+    """
+    # This method needs to be in this __init__.py to get the __name__ correct
+    # even if urllib3 is vendored within another package.
+    logger = logging.getLogger(__name__)
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+    logger.addHandler(handler)
+    logger.setLevel(level)
+    logger.debug('Added a stderr logging handler to logger: %s', __name__)
+    return handler
+
+
+# ... Clean up.
+del NullHandler
+
+
+# All warning filters *must* be appended unless you're really certain that they
+# shouldn't be: otherwise, it's very hard for users to use most Python
+# mechanisms to silence them.
+# SecurityWarning's always go off by default.
+warnings.simplefilter('always', exceptions.SecurityWarning, append=True)
+# SubjectAltNameWarning's should go off once per host
+warnings.simplefilter('default', exceptions.SubjectAltNameWarning, append=True)
+# InsecurePlatformWarning's don't vary between requests, so we keep it default.
+warnings.simplefilter('default', exceptions.InsecurePlatformWarning,
+                      append=True)
+# SNIMissingWarnings should go off only once.
+warnings.simplefilter('default', exceptions.SNIMissingWarning, append=True)
+
+
+def disable_warnings(category=exceptions.HTTPWarning):
+    """
+    Helper for quickly disabling all urllib3 warnings.
+    """
+    warnings.simplefilter('ignore', category)
