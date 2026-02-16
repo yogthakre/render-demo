@@ -1,18 +1,11 @@
-from textwrap import dedent
+"""CacheControl import Interface.
 
-try:
-    from .file_cache import FileCache
-except ImportError:
-    notice = dedent('''
-    NOTE: In order to use the FileCache you must have
-    lockfile installed. You can install it via pip:
-      pip install lockfile
-    ''')
-    print(notice)
+Make it easy to import from cachecontrol without long namespaces.
+"""
+__author__ = 'Eric Larson'
+__email__ = 'eric@ionrock.org'
+__version__ = '0.11.7'
 
-
-try:
-    import redis
-    from .redis_cache import RedisCache
-except ImportError:
-    pass
+from .wrapper import CacheControl
+from .adapter import CacheControlAdapter
+from .controller import CacheController
