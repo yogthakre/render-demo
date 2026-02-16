@@ -1,23 +1,25 @@
-# -*- coding: utf-8 -*-
-#
-# Copyright (C) 2012-2016 Vinay Sajip.
-# Licensed to the Python Software Foundation under a contributor agreement.
-# See LICENSE.txt and CONTRIBUTORS.txt.
-#
-import logging
+"""
+HTML parsing library based on the WHATWG "HTML5"
+specification. The parser is designed to be compatible with existing
+HTML found in the wild and implements well-defined error recovery that
+is largely compatible with modern desktop web browsers.
 
-__version__ = '0.2.4'
+Example usage:
 
-class DistlibException(Exception):
-    pass
+import html5lib
+f = open("my_document.html")
+tree = html5lib.parse(f)
+"""
 
-try:
-    from logging import NullHandler
-except ImportError: # pragma: no cover
-    class NullHandler(logging.Handler):
-        def handle(self, record): pass
-        def emit(self, record): pass
-        def createLock(self): self.lock = None
+from __future__ import absolute_import, division, unicode_literals
 
-logger = logging.getLogger(__name__)
-logger.addHandler(NullHandler())
+from .html5parser import HTMLParser, parse, parseFragment
+from .treebuilders import getTreeBuilder
+from .treewalkers import getTreeWalker
+from .serializer import serialize
+
+__all__ = ["HTMLParser", "parse", "parseFragment", "getTreeBuilder",
+           "getTreeWalker", "serialize"]
+
+# this has to be at the top level, see how setup.py parses this
+__version__ = "1.0b10"
