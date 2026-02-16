@@ -1,7 +1,23 @@
-# Copyright Jonathan Hartley 2013. BSD 3-Clause license, see LICENSE file.
-from .initialise import init, deinit, reinit, colorama_text
-from .ansi import Fore, Back, Style, Cursor
-from .ansitowin32 import AnsiToWin32
+# -*- coding: utf-8 -*-
+#
+# Copyright (C) 2012-2016 Vinay Sajip.
+# Licensed to the Python Software Foundation under a contributor agreement.
+# See LICENSE.txt and CONTRIBUTORS.txt.
+#
+import logging
 
-__version__ = '0.3.7'
+__version__ = '0.2.4'
 
+class DistlibException(Exception):
+    pass
+
+try:
+    from logging import NullHandler
+except ImportError: # pragma: no cover
+    class NullHandler(logging.Handler):
+        def handle(self, record): pass
+        def emit(self, record): pass
+        def createLock(self): self.lock = None
+
+logger = logging.getLogger(__name__)
+logger.addHandler(NullHandler())
