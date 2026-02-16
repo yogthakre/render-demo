@@ -1,11 +1,3 @@
-"""CacheControl import Interface.
+from .core import where, old_where
 
-Make it easy to import from cachecontrol without long namespaces.
-"""
-__author__ = 'Eric Larson'
-__email__ = 'eric@ionrock.org'
-__version__ = '0.11.7'
-
-from .wrapper import CacheControl
-from .adapter import CacheControlAdapter
-from .controller import CacheController
+__version__ = "2018.01.18"
