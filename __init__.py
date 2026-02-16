@@ -1,123 +1,121 @@
-# Copyright (c) 2012 Giorgos Verigakis <verigak@gmail.com>
-#
-# Permission to use, copy, modify, and distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# -*- coding: utf-8 -*-
 
-from __future__ import division
+#   __
+#  /__)  _  _     _   _ _/   _
+# / (   (- (/ (/ (- _)  /  _)
+#          /
 
-from collections import deque
-from datetime import timedelta
-from math import ceil
-from sys import stderr
-from time import time
+"""
+Requests HTTP Library
+~~~~~~~~~~~~~~~~~~~~~
 
+Requests is an HTTP library, written in Python, for human beings. Basic GET
+usage:
 
-__version__ = '1.2'
+   >>> import requests
+   >>> r = requests.get('https://www.python.org')
+   >>> r.status_code
+   200
+   >>> 'Python is a programming language' in r.content
+   True
 
+... or POST:
 
-class Infinite(object):
-    file = stderr
-    sma_window = 10
+   >>> payload = dict(key1='value1', key2='value2')
+   >>> r = requests.post('http://httpbin.org/post', data=payload)
+   >>> print(r.text)
+   {
+     ...
+     "form": {
+       "key2": "value2",
+       "key1": "value1"
+     },
+     ...
+   }
 
-    def __init__(self, *args, **kwargs):
-        self.index = 0
-        self.start_ts = time()
-        self._ts = self.start_ts
-        self._dt = deque(maxlen=self.sma_window)
-        for key, val in kwargs.items():
-            setattr(self, key, val)
+The other HTTP methods are supported - see `requests.api`. Full documentation
+is at <http://python-requests.org>.
 
-    def __getitem__(self, key):
-        if key.startswith('_'):
-            return None
-        return getattr(self, key, None)
+:copyright: (c) 2017 by Kenneth Reitz.
+:license: Apache 2.0, see LICENSE for more details.
+"""
 
-    @property
-    def avg(self):
-        return sum(self._dt) / len(self._dt) if self._dt else 0
-
-    @property
-    def elapsed(self):
-        return int(time() - self.start_ts)
-
-    @property
-    def elapsed_td(self):
-        return timedelta(seconds=self.elapsed)
-
-    def update(self):
-        pass
-
-    def start(self):
-        pass
-
-    def finish(self):
-        pass
-
-    def next(self, n=1):
-        if n > 0:
-            now = time()
-            dt = (now - self._ts) / n
-            self._dt.append(dt)
-            self._ts = now
-
-        self.index = self.index + n
-        self.update()
-
-    def iter(self, it):
-        for x in it:
-            yield x
-            self.next()
-        self.finish()
+from pip._vendor import urllib3
+from pip._vendor import chardet
+import warnings
+from .exceptions import RequestsDependencyWarning
 
 
-class Progress(Infinite):
-    def __init__(self, *args, **kwargs):
-        super(Progress, self).__init__(*args, **kwargs)
-        self.max = kwargs.get('max', 100)
+def check_compatibility(urllib3_version, chardet_version):
+    urllib3_version = urllib3_version.split('.')
+    assert urllib3_version != ['dev']  # Verify urllib3 isn't installed from git.
 
-    @property
-    def eta(self):
-        return int(ceil(self.avg * self.remaining))
+    # Sometimes, urllib3 only reports its version as 16.1.
+    if len(urllib3_version) == 2:
+        urllib3_version.append('0')
 
-    @property
-    def eta_td(self):
-        return timedelta(seconds=self.eta)
+    # Check urllib3 for compatibility.
+    major, minor, patch = urllib3_version  # noqa: F811
+    major, minor, patch = int(major), int(minor), int(patch)
+    # urllib3 >= 1.21.1, <= 1.22
+    assert major == 1
+    assert minor >= 21
+    assert minor <= 22
 
-    @property
-    def percent(self):
-        return self.progress * 100
+    # Check chardet for compatibility.
+    major, minor, patch = chardet_version.split('.')[:3]
+    major, minor, patch = int(major), int(minor), int(patch)
+    # chardet >= 3.0.2, < 3.1.0
+    assert major == 3
+    assert minor < 1
+    assert patch >= 2
 
-    @property
-    def progress(self):
-        return min(1, self.index / self.max)
 
-    @property
-    def remaining(self):
-        return max(self.max - self.index, 0)
+# Check imported dependencies for compatibility.
+try:
+    check_compatibility(urllib3.__version__, chardet.__version__)
+except (AssertionError, ValueError):
+    warnings.warn("urllib3 ({0}) or chardet ({1}) doesn't match a supported "
+                  "version!".format(urllib3.__version__, chardet.__version__),
+                  RequestsDependencyWarning)
 
-    def start(self):
-        self.update()
+# Attempt to enable urllib3's SNI support, if possible
+# try:
+#     from pip._vendor.urllib3.contrib import pyopenssl
+#     pyopenssl.inject_into_urllib3()
+# except ImportError:
+#     pass
 
-    def goto(self, index):
-        incr = index - self.index
-        self.next(incr)
+# urllib3's DependencyWarnings should be silenced.
+from pip._vendor.urllib3.exceptions import DependencyWarning
+warnings.simplefilter('ignore', DependencyWarning)
 
-    def iter(self, it):
-        try:
-            self.max = len(it)
-        except TypeError:
+from .__version__ import __title__, __description__, __url__, __version__
+from .__version__ import __build__, __author__, __author_email__, __license__
+from .__version__ import __copyright__, __cake__
+
+from . import utils
+from . import packages
+from .models import Request, Response, PreparedRequest
+from .api import request, get, head, post, patch, put, delete, options
+from .sessions import session, Session
+from .status_codes import codes
+from .exceptions import (
+    RequestException, Timeout, URLRequired,
+    TooManyRedirects, HTTPError, ConnectionError,
+    FileModeWarning, ConnectTimeout, ReadTimeout
+)
+
+# Set default logging handler to avoid "No handler found" warnings.
+import logging
+try:  # Python 2.7+
+    from logging import NullHandler
+except ImportError:
+    class NullHandler(logging.Handler):
+        def emit(self, record):
             pass
 
-        for x in it:
-            yield x
-            self.next()
-        self.finish()
+logging.getLogger(__name__).addHandler(NullHandler())
+
+# FileModeWarnings go off per the default.
+warnings.simplefilter('default', FileModeWarning, append=True)
